@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>محلل الحركة</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--tx:#14202b;--mut:#5b6b7a;--ac:#0e7c86;--bd:#d8e0e6;--warn:#facc15;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c141b;--card:#15212b;--tx:#e8eef3;--mut:#94a6b5;--ac:#22d3ee;--bd:#24343f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0c141b;--card:#15212b;--tx:#e8eef3;--mut:#94a6b5;--ac:#22d3ee;--bd:#24343f;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:Cairo,Tajawal,system-ui,sans-serif;line-height:1.6}
+main{max-width:720px;margin:0 auto;padding:12px}
+h1{font-size:1.2rem;margin:4px 0 10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:10px;margin-bottom:10px}
+#wrap{position:relative;background:#000;border-radius:12px;overflow:hidden;width:100%;aspect-ratio:16/9;max-height:70vh;margin:0 auto}
+#v,#c{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#c{pointer-events:none}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+button,select,.btn{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:8px 12px;cursor:pointer}
+.pri{background:var(--ac);color:#04222a;border-color:var(--ac);font-weight:700}
+input[type=range]{flex:1;min-width:140px}
+#st{font-size:.9rem;color:var(--mut)}
+#err{list-style:none;margin:0;padding:0;max-height:240px;overflow:auto}
+#err li{padding:7px 9px;border-radius:8px;margin-bottom:5px;background:rgba(250,204,21,.16);border-inline-start:4px solid var(--warn);cursor:pointer;font-size:.92rem}
+.mut{color:var(--mut);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+<h1>محلل الحركة — نقاط الجسم والزوايا والأخطاء</h1>
+<div class="card">
+  <div id="wrap"><video id="v" playsinline muted preload="auto"></video><canvas id="c"></canvas></div>
+  <div class="row">
+    <label class="btn pri">ارفع فيديو<input id="f" type="file" accept="video/*" hidden></label>
+    <button id="pp">تشغيل</button>
+    <button id="bk">◀ إطار</button><button id="fw">إطار ▶</button>
+    <select id="sp"><option value="0.1">0.1x</option><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select>
+    <select id="md"><option value="swim">سباحة</option><option value="squat">سكوات</option><option value="gen">عام</option></select>
+  </div>
+  <div class="row"><input id="sl" type="range" min="0" max="1" step="0.01" value="0"><span id="tm" class="mut">0:00</span></div>
+  <div class="row"><span id="st">اختار فيديو للبدء</span><button id="rt" hidden>جرّب تحميل النموذج تاني</button></div>
+</div>
+<div class="card">
+  <strong>الأخطاء المكتشفة (الأصفر)</strong>
+  <p class="mut" style="margin:2px 0 8px">اضغط على أي خطأ عشان تروح للحظة دي في الفيديو. الحدود دي نقطة بداية وممكن تتعدّل حسب مراجع بحثك.</p>
+  <ul id="err"></ul>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const v=$('v'),c=$('c'),x=c.getContext('2d'),st=$('st'),wrap=$('wrap'),list=$('err');
+const E=[[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]];
+const J=[['الكوع الأيسر','elbow',[5,7,9]],['الكوع الأيمن','elbow',[6,8,10]],['الركبة اليسرى','knee',[11,13,15]],['الركبة اليمنى','knee',[12,14,16]],['الورك الأيسر','hip',[5,11,13]],['الورك الأيمن','hip',[6,12,14]]];
+const R={swim:{elbow:[90,180],knee:[140,180],hip:[150,185]},squat:{elbow:[0,180],knee:[70,180],hip:[60,180]},gen:{elbow:[30,180],knee:[60,180],hip:[60,185]}};
+let det=null,busy=false,force=true,lastT=-1,lastErr={},loading=false;
+
+const fmt=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
+const ld=u=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=u;s.onload=ok;s.onerror=()=>no(new Error('فشل '+u.split('/')[2]));document.head.appendChild(s)});
+
+async function load(){
+  if(det||loading)return;loading=true;$('rt').hidden=true;
+  st.textContent='جاري تحميل نموذج التحليل… (أول مرة بياخد شوية)';
+  let last='';
+  for(const b of ['https://cdn.jsdelivr.net/npm/','https://unpkg.com/']){
+    try{
+      if(!window.tf)await ld(b+'@tensorflow/tfjs@4.17.0/dist/tf.min.js');
+      if(!window.poseDetection)await ld(b+'@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js');
+      await tf.ready();
+      det=await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet,{modelType:poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING});
+      st.textContent='النموذج جاهز ✅ — شغّل الفيديو أو حرّك الشريط';force=true;loading=false;return;
+    }catch(e){last=e.message||String(e)}
+  }
+  loading=false;
+  st.textContent='تعذّر تحميل نموذج التحليل ('+last+'). التحليل الحقيقي محتاج إنترنت مفتوح للموقع.';
+  $('rt').hidden=false;
+}
+$('rt').onclick=load;
+
+$('f').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  if(v.src)URL.revokeObjectURL(v.src);
+  list.innerHTML='';lastErr={};x.clearRect(0,0,c.width,c.height);
+  v.src=URL.createObjectURL(f);v.load();
+  st.textContent='جاري قراءة الفيديو…';load();
+};
+v.onloadedmetadata=()=>{
+  c.width=v.videoWidth;c.height=v.videoHeight;
+  wrap.style.aspectRatio=v.videoWidth+'/'+v.videoHeight;
+  $('sl').max=v.duration;$('sl').step=0.01;v.playbackRate=+$('sp').value;force=true;
+  if(det)st.textContent='الفيديو اتحمّل ✅ — '+fmt(v.duration);
+};
+v.onerror=()=>{st.textContent='الفيديو مش بيتفتح على المتصفح ده (غالبًا صيغة HEVC/H.265). جرّب فيديو بصيغة MP4 H.264 أو صوّره بإعداد «الأكثر توافقًا».'};
+v.onseeked=()=>{force=true};
+v.ontimeupdate=()=>{$('sl').value=v.currentTime;$('tm').textContent=fmt(v.currentTime)+' / '+fmt(v.duration||0)};
+$('sl').oninput=e=>{v.currentTime=+e.target.value};
+$('sp').onchange=e=>{v.playbackRate=+e.target.value};
+$('md').onchange=()=>{lastErr={};force=true};
+$('pp').onclick=()=>{if(!v.src)return;v.paused?v.play().catch(()=>{}):v.pause()};
+v.onplay=()=>$('pp').textContent='إيقاف';v.onpause=()=>{$('pp').textContent='تشغيل';force=true};
+$('fw').onclick=()=>{v.pause();v.currentTime=Math.min(v.duration||0,v.currentTime+1/30)};
+$('bk').onclick=()=>{v.pause();v.currentTime=Math.max(0,v.currentTime-1/30)};
+
+function ang(a,b,d){
+  const r=Math.atan2(d.y-b.y,d.x-b.x)-Math.atan2(a.y-b.y,a.x-b.x);
+  let g=Math.abs(r*180/Math.PI);if(g>180)g=360-g;return g;
+}
+function addErr(t,name,g,[lo,hi]){
+  if(t-(lastErr[name]??-9)<0.6)return;lastErr[name]=t;
+  const li=document.createElement('li');
+  li.textContent=fmt(t)+' — '+name+': '+Math.round(g)+'° (المتوقع '+lo+'–'+hi+'°)';
+  li.onclick=()=>{v.pause();v.currentTime=t};
+  list.prepend(li);while(list.children.length>60)list.lastChild.remove();
+}
+function draw(k,t){
+  x.clearRect(0,0,c.width,c.height);
+  const ok=i=>k[i]&&k[i].score>0.3,lw=Math.max(3,c.width/200),rg=R[$('md').value];
+  x.lineWidth=lw;x.lineCap='round';x.strokeStyle='#22d3ee';
+  for(const[a,b]of E)if(ok(a)&&ok(b)){x.beginPath();x.moveTo(k[a].x,k[a].y);x.lineTo(k[b].x,k[b].y);x.stroke()}
+  x.fillStyle='#a3e635';
+  k.forEach((p,i)=>{if(ok(i)){x.beginPath();x.arc(p.x,p.y,lw*1.5,0,7);x.fill()}});
+  x.font='bold '+Math.round(lw*5)+'px sans-serif';x.textAlign='center';
+  for(const[name,type,[a,b,d]]of J){
+    if(!(ok(a)&&ok(b)&&ok(d)))continue;
+    const g=ang(k[a],k[b],k[d]),[lo,hi]=rg[type],bad=g<lo||g>hi;
+    if(bad){x.fillStyle='#facc15';x.beginPath();x.arc(k[b].x,k[b].y,lw*3,0,7);x.fill();addErr(t,name,g,[lo,hi])}
+    x.fillStyle=bad?'#facc15':'#fff';x.strokeStyle='#000';x.lineWidth=lw/2;
+    x.strokeText(Math.round(g)+'°',k[b].x,k[b].y-lw*3);x.fillText(Math.round(g)+'°',k[b].x,k[b].y-lw*3);x.lineWidth=lw;x.strokeStyle='#22d3ee';
+  }
+}
+async function tick(){
+  if(det&&!busy&&v.src&&v.readyState>=2&&v.videoWidth&&(force||v.currentTime!==lastT)){
+    busy=true;force=false;lastT=v.currentTime;
+    try{const p=await det.estimatePoses(v,{flipHorizontal:false});
+      if(p[0])draw(p[0].keypoints,lastT);else x.clearRect(0,0,c.width,c.height)}
+    catch(e){st.textContent='خطأ في تحليل إطار: '+(e.message||e)}
+    busy=false;
+  }
+  requestAnimationFrame(tick);
+}
+tick();load();
+</script>
+</body>
+</html>
