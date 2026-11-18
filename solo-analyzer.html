@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>محلل الحركة</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--tx:#14202b;--mut:#5b6b7a;--ac:#0e7c86;--bd:#d8e0e6;--warn:#facc15;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c141b;--card:#15212b;--tx:#e8eef3;--mut:#94a6b5;--ac:#22d3ee;--bd:#24343f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0c141b;--card:#15212b;--tx:#e8eef3;--mut:#94a6b5;--ac:#22d3ee;--bd:#24343f;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:Cairo,Tajawal,system-ui,sans-serif;line-height:1.6}
+main{max-width:1000px;margin:0 auto;padding:12px}
+h1{font-size:1.15rem;margin:4px 0 10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:10px;margin-bottom:10px}
+.grid{display:grid;gap:10px}
+
+.wrap{position:relative;background:#000;border-radius:12px;overflow:hidden;width:100%;aspect-ratio:16/9;max-height:60vh;margin:6px auto 0}
+.wrap video,.wrap canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.wrap canvas{pointer-events:none}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+button,select,.btn{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:8px 12px;cursor:pointer}
+.pri{background:var(--ac);color:#04222a;border-color:var(--ac);font-weight:700}
+button:disabled{opacity:.5}
+input[type=range]{flex:1;min-width:140px}
+.mut{color:var(--mut);font-size:.85rem}
+#err{list-style:none;margin:0;padding:0;max-height:260px;overflow:auto}
+#err li{padding:7px 9px;border-radius:8px;margin-bottom:5px;background:rgba(250,204,21,.16);border-inline-start:4px solid var(--warn);cursor:pointer;font-size:.92rem}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+td,th{padding:5px;border-bottom:1px solid var(--bd);text-align:center}
+tr.y{background:rgba(250,204,21,.18)}
+.chk{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chk label,.row label{display:flex;gap:8px;align-items:center}
+.seg{display:flex;border:1px solid var(--bd);border-radius:10px;overflow:hidden;margin-top:10px}
+.seg label{flex:1;text-align:center;cursor:pointer}
+.seg input{display:none}
+.seg span{display:block;padding:8px}
+.seg input:checked+span{background:var(--ac);color:#04222a;font-weight:700}
+</style>
+</head>
+<body>
+<main>
+<h1>محلل الحركة</h1>
+<section class="grid">
+  <div class="card"><b>فيديوك</b>
+    <div class="wrap" id="wa"><video id="va" playsinline muted preload="auto"></video><canvas id="ca"></canvas></div>
+    <div class="row"><label class="btn pri">ارفع فيديوك<input id="fa" type="file" accept="video/*" hidden></label><span id="sta" class="mut"></span></div>
+    <div class="row"><button id="s0a">بداية من هنا</button><button id="s1a">نهاية (دخول الماء) هنا</button><span id="ra" class="mut"></span></div>
+  </div>
+  <div class="card" hidden><b>الفيديو الصحيح (المرجع)</b>
+    <div class="wrap" id="wb"><video id="vb" playsinline muted preload="auto"></video><canvas id="cb"></canvas></div>
+    <div class="row"><label class="btn pri">ارفع المرجع<input id="fb" type="file" accept="video/*" hidden></label><span id="stb" class="mut"></span></div>
+    <div class="row"><button id="s0b">بداية من هنا</button><button id="s1b">نهاية (دخول الماء) هنا</button><span id="rb" class="mut"></span></div>
+  </div>
+</section>
+<div class="card" id="set"><strong>إعدادات التحليل</strong>
+  <div class="chk" id="jc" style="margin-top:8px"></div>
+  <div class="row"><label><input type="checkbox" id="sk" checked> عرض الهيكل</label></div>
+  <div class="seg"><label><input type="radio" name="sd" value="all" checked><span>الجسم كامل</span></label><label><input type="radio" name="sd" value="L"><span>اليسار فقط</span></label><label><input type="radio" name="sd" value="R"><span>اليمين فقط</span></label></div>
+</div>
+<div class="card">
+  <div class="row" style="margin-top:0">
+    <button id="pp">تشغيل</button><button id="bk">◀ إطار</button><button id="fw">إطار ▶</button>
+    <select id="sp"><option value="0.1">0.1x</option><option value="0.25">0.25x</option><option value="0.5" selected>0.5x</option><option value="1">1x</option></select>
+    <select id="md"><option value="swim">سباحة</option><option value="squat">سكوات</option><option value="gen">عام</option></select>
+  </div>
+  <div class="row"><input id="sl" type="range" min="0" max="1000" value="0"><span id="tm" class="mut">0:00</span></div>
+  <div class="row"><button id="cmp" class="pri">ابدأ التحليل</button><span id="gst" class="mut">ارفع فيديو للبدء</span><button id="rt" hidden>جرّب تحميل النموذج تاني</button></div>
+  <p class="mut" style="margin:8px 0 0">لأدق نتيجة: صوّر بكاميرا ثابتة ومن زاوية جانبية. التشغيل البطيء بيخلي الهيكل يلحق الجسم. لو في أكتر من شخص في الفيديو: <b>اضغط على الشخص اللي عايز تحلله</b> (يفضل على أول إطار) والهيكل هيتبعه هو بس.<br><b>حدد المقطع:</b> وقّف الفيديو على أول لحظة واضغط «بداية من هنا»، ووقّف على لحظة دخول الماء واضغط «نهاية هنا». التحليل بيتم في المقطع ده بس (الجسم تحت الماء مبيتحللش كويس).</p>
+</div>
+<div class="card" hidden><strong>ملخص المقارنة</strong><div id="sum" class="mut">اضغط «حلّل وقارن» بعد رفع الفيديوهين.</div></div>
+<div class="card"><strong>الأخطاء في فيديوك (الأصفر)</strong><p class="mut" style="margin:2px 0 8px">اضغط على أي خطأ عشان تروح للحظة دي.</p><ul id="err"></ul></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const E=[[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]];
+const J=[['الكوع الأيسر','elbow',[5,7,9]],['الكوع الأيمن','elbow',[6,8,10]],['الركبة اليسرى','knee',[11,13,15]],['الركبة اليمنى','knee',[12,14,16]],['الورك الأيسر','hip',[5,11,13]],['الورك الأيمن','hip',[6,12,14]],['الكتف الأيسر','sh',[7,5,11]],['الكتف الأيمن','sh',[8,6,12]]];
+const R={swim:{elbow:[90,180],knee:[140,180],hip:[150,185],sh:[0,185]},squat:{elbow:[0,180],knee:[70,180],hip:[60,180],sh:[0,185]},gen:{elbow:[30,180],knee:[60,180],hip:[60,185],sh:[0,185]}};
+const TOL=15,list=$('err'),gst=$('gst');
+let det=null,multi=false,loading=false,ref=null,analyzing=false,built=false,lastErr={};
+const P=['a','b'].map(id=>({id,v:$('v'+id),c:$('c'+id),x:$('c'+id).getContext('2d'),st:$('st'+id),w:$('w'+id),kp:null,busy:false,force:true,lastT:-1,data:[],target:null,tap:null,lost:0,others:[],t0:0,t1:0}));
+const [A,B]=P;
+const fmt=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
+const ld=u=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=u;s.onload=ok;s.onerror=()=>no(new Error('فشل '+u.split('/')[2]));document.head.appendChild(s)});
+
+async function load(){
+  if(det||loading)return;loading=true;$('rt').hidden=true;
+  gst.textContent='جاري تحميل نموذج التحليل… (أول مرة بياخد شوية)';
+  let last='';
+  for(const b of ['https://cdn.jsdelivr.net/npm/','https://unpkg.com/']){
+    try{
+      if(!window.tf)await ld(b+'@tensorflow/tfjs@4.17.0/dist/tf.min.js');
+      if(!window.poseDetection)await ld(b+'@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js');
+      await tf.ready();
+      for(const t of ['MULTIPOSE_LIGHTNING','SINGLEPOSE_THUNDER','SINGLEPOSE_LIGHTNING']){
+        try{det=await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet,{modelType:poseDetection.movenet.modelType[t]});multi=t[0]==='M';break}catch(e){last=e.message||String(e)}
+      }
+      if(det){gst.textContent=multi?'النموذج جاهز ✅ — اضغط على الشخص اللي عايز تحلله في الفيديو':'النموذج جاهز ✅ (نسخة شخص واحد)';P.forEach(o=>o.force=true);loading=false;return}
+    }catch(e){last=e.message||String(e)}
+  }
+  loading=false;gst.textContent='تعذّر تحميل النموذج ('+last+'). محتاج إنترنت مفتوح للموقع.';$('rt').hidden=false;
+}
+$('rt').onclick=load;
+
+function reset(){ref=null;built=false;lastErr={};list.innerHTML='';$('sum').textContent='اضغط «حلّل وقارن» بعد رفع الفيديوهين.'}
+P.forEach(o=>{
+  $('f'+o.id).onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    if(o.v.src)URL.revokeObjectURL(o.v.src);
+    o.kp=null;o.data=[];o.target=null;o.tap=null;o.others=[];o.lost=0;o.x.clearRect(0,0,o.c.width,o.c.height);reset();
+    o.v.src=URL.createObjectURL(f);o.v.load();o.st.textContent='جاري القراءة…';load();
+  };
+  o.v.onloadedmetadata=()=>{
+    o.c.width=o.v.videoWidth;o.c.height=o.v.videoHeight;
+    o.w.style.aspectRatio=o.v.videoWidth+'/'+o.v.videoHeight;
+    o.t0=0;o.t1=o.v.duration;lab(o);applyRate();o.force=true;o.st.textContent='اتحمّل ✅ '+fmt(o.v.duration);
+  };
+  o.w.onclick=e=>{
+    const v=o.v;if(!v.videoWidth)return;
+    const r=o.w.getBoundingClientRect(),s=Math.min(r.width/v.videoWidth,r.height/v.videoHeight);
+    const px=(e.clientX-r.left-(r.width-v.videoWidth*s)/2)/s,py=(e.clientY-r.top-(r.height-v.videoHeight*s)/2)/s;
+    o.target={x:px,y:py};o.tap={x:px,y:py,t:v.currentTime};o.kp=null;o.lost=0;o.force=true;reset();
+    o.st.textContent='اتحدد الشخص ✅ (هيتتبّع هو بس)';
+  };
+  o.v.onerror=()=>{o.st.textContent='الفيديو مش بيتفتح (غالبًا HEVC). جرّب MP4 H.264.'};
+  o.v.onseeked=()=>{o.force=true};
+  o.v.ontimeupdate=()=>{
+    if(o.v.duration&&o.v.currentTime>=o.t1&&!o.v.paused)o.v.pause();
+    const L=A.v.duration?A:B;
+    if(o===L&&o.v.duration){const sg=o.t1-o.t0,c=Math.max(0,Math.min(sg,o.v.currentTime-o.t0));$('sl').value=c/sg*1000;$('tm').textContent=fmt(c)+' / '+fmt(sg)}
+  };
+  const sync=()=>{$('pp').textContent=P.every(q=>q.v.paused)?'تشغيل':'إيقاف';o.force=true};
+  o.v.onplay=sync;o.v.onpause=sync;
+});
+const loaded=()=>P.filter(o=>o.v.src&&o.v.duration);
+$('jc').innerHTML=J.map(([n],i)=>'<label><input type="checkbox" id="j'+i+'" checked> '+n+'</label>').join('');
+const side=()=>document.querySelector('input[name=sd]:checked').value;
+const jOn=n=>{const s=side();return(s==='all'||(s==='L')===n.includes('الأيسر'))&&$('j'+J.findIndex(j=>j[0]===n)).checked};
+const showPt=i=>{const s=side();return s==='all'||(i>=5&&(s==='L')===(i%2===1))};
+document.querySelectorAll('#set input').forEach(i=>i.onchange=()=>{P.forEach(o=>o.force=true);if(!analyzing&&(A.data.length||B.data.length))finish()});
+const lab=o=>{$('r'+o.id).textContent='المقطع: '+fmt(o.t0)+' → '+fmt(o.t1)};
+function applyRate(){
+  const sp=+$('sp').value,L=loaded();
+  if(L.length===2){A.v.playbackRate=sp;B.v.playbackRate=Math.min(16,Math.max(.0625,sp*(B.t1-B.t0)/(A.t1-A.t0)))}
+  else L.forEach(o=>o.v.playbackRate=sp);
+}
+P.forEach(o=>{
+  $('s0'+o.id).onclick=()=>{if(!o.v.duration)return;o.t0=Math.min(o.v.currentTime,o.t1-.2);lab(o);applyRate();reset();o.force=true};
+  $('s1'+o.id).onclick=()=>{if(!o.v.duration)return;o.t1=Math.max(o.v.currentTime,o.t0+.2);lab(o);applyRate();reset();o.force=true};
+});
+$('sl').oninput=e=>loaded().forEach(o=>{o.v.currentTime=o.t0+e.target.value/1000*(o.t1-o.t0)});
+$('sp').onchange=applyRate;
+$('md').onchange=()=>{reset();P.forEach(o=>o.force=true)};
+$('pp').onclick=()=>{const L=loaded();if(!L.length)return;const play=L.every(o=>o.v.paused);if(play)L.forEach(o=>{if(o.v.currentTime<o.t0-.05||o.v.currentTime>=o.t1-.05)o.v.currentTime=o.t0});L.forEach(o=>play?o.v.play().catch(()=>{}):o.v.pause())};
+$('fw').onclick=()=>loaded().forEach(o=>{o.v.pause();o.v.currentTime=Math.min(o.v.duration,o.v.currentTime+1/30)});
+$('bk').onclick=()=>loaded().forEach(o=>{o.v.pause();o.v.currentTime=Math.max(0,o.v.currentTime-1/30)});
+
+function ang(a,b,d){const r=Math.atan2(d.y-b.y,d.x-b.x)-Math.atan2(a.y-b.y,a.x-b.x);let g=Math.abs(r*180/Math.PI);return g>180?360-g:g}
+function angs(kp){const r={};for(const[n,,[a,b,d]]of J){const p=[kp[a],kp[b],kp[d]];r[n]=p.every(q=>!q.held)?ang(p[0],p[1],p[2]):null}return r}
+function rng(o,n,type){if(ref)return o===A?(ref[n]||null):null;return R[$('md').value][type]}
+
+const cen=k=>{const g=k.filter(q=>q.score>=.2),a=g.length?g:k;return{x:a.reduce((t,q)=>t+q.x,0)/a.length,y:a.reduce((t,q)=>t+q.y,0)/a.length}};
+const area=p=>{const g=p.keypoints.filter(q=>q.score>=.2);if(g.length<2)return 0;const X=g.map(q=>q.x),Y=g.map(q=>q.y);return(Math.max(...X)-Math.min(...X))*(Math.max(...Y)-Math.min(...Y))};
+async function est(o){
+  const ps=await det.estimatePoses(o.v,multi?{maxPoses:6,flipHorizontal:false}:{flipHorizontal:false});
+  const W=o.c.width,H=o.c.height;
+  const L=ps.filter(p=>p.keypoints&&p.keypoints.length>=17&&(!multi||p.keypoints.filter(q=>q.score>=.2).length>=3));
+  if(!L.length)return;
+  let pick=L[0];
+  if(L.length>1||o.target){
+    if(!o.target)pick=L.reduce((a,b)=>area(b)>area(a)?b:a);
+    else{
+      let bd=1e9;
+      for(const p of L){
+        const d=o.kp?Math.hypot(cen(p.keypoints).x-o.target.x,cen(p.keypoints).y-o.target.y):Math.min(...p.keypoints.map(q=>Math.hypot(q.x-o.target.x,q.y-o.target.y)));
+        if(d<bd){bd=d;pick=p}
+      }
+      if(o.kp&&bd>Math.max(W,H)*.4&&o.lost<4){o.lost++;o.kp.forEach(m=>m.held=true);o.others=[];return}
+    }
+  }
+  o.lost=0;o.target=cen(pick.keypoints);
+  o.others=L.filter(p=>p!==pick).map(p=>p.keypoints);
+  const k=pick.keypoints;
+  if(!o.kp)o.kp=k.map(q=>({x:q.x,y:q.y,held:q.score<.2}));
+  k.forEach((q,i)=>{const m=o.kp[i];
+    if(q.score>=.2){const a=Math.hypot(q.x-m.x,q.y-m.y)>W*.15?1:.6;m.x+=(q.x-m.x)*a;m.y+=(q.y-m.y)*a;m.held=false}
+    else m.held=true;
+  });
+}
+function addLi(t,n,g,r){
+  const li=document.createElement('li');
+  li.textContent=fmt(t)+' — '+n+': '+Math.round(g)+'° (المتوقع '+Math.round(r[0])+'–'+Math.round(r[1])+'°)';
+  li.onclick=()=>{A.v.pause();A.v.currentTime=t;if(B.v.duration&&A.v.duration)B.v.currentTime=B.t0+(t-A.t0)/(A.t1-A.t0)*(B.t1-B.t0)};
+  list.appendChild(li);
+}
+function draw(o,t){
+  const x=o.x,c=o.c,kp=o.kp;x.clearRect(0,0,c.width,c.height);
+  if(o.others&&o.others.length&&$('sk').checked){x.globalAlpha=.35;x.strokeStyle='#cbd5e1';x.lineWidth=Math.max(2,c.width/300);for(const k of o.others)for(const[a,b]of E){if(k[a].score<.2||k[b].score<.2)continue;x.beginPath();x.moveTo(k[a].x,k[a].y);x.lineTo(k[b].x,k[b].y);x.stroke()}x.globalAlpha=1}
+  if(!kp)return;
+  const lw=Math.max(3,c.width/200);x.lineCap='round';
+  if($('sk').checked)for(const[a,b]of E){if(!showPt(a)||!showPt(b))continue;x.globalAlpha=(kp[a].held||kp[b].held)?.45:1;x.strokeStyle='#22d3ee';x.lineWidth=lw;x.beginPath();x.moveTo(kp[a].x,kp[a].y);x.lineTo(kp[b].x,kp[b].y);x.stroke()}
+  kp.forEach((p,i)=>{if(!$('sk').checked||!showPt(i))return;x.globalAlpha=p.held?.5:1;x.fillStyle='#a3e635';x.beginPath();x.arc(p.x,p.y,lw*1.5,0,7);x.fill()});
+  x.globalAlpha=1;x.font='bold '+Math.round(lw*5)+'px sans-serif';x.textAlign='center';
+  const an=angs(kp);
+  for(const[n,type,[a,b,d]]of J){
+    const g=an[n];if(g==null||!jOn(n))continue;
+    const r=rng(o,n,type),bad=r&&(g<r[0]||g>r[1]),q=kp[b];
+    const A1=Math.atan2(kp[a].y-q.y,kp[a].x-q.x);let df=Math.atan2(kp[d].y-q.y,kp[d].x-q.x)-A1;
+    while(df>Math.PI)df-=2*Math.PI;while(df<-Math.PI)df+=2*Math.PI;
+    x.globalAlpha=1;x.fillStyle=bad?'rgba(250,204,21,.5)':'rgba(251,146,132,.5)';x.beginPath();x.moveTo(q.x,q.y);x.arc(q.x,q.y,lw*7,A1,A1+df,df<0);x.closePath();x.fill();
+    if(bad){x.fillStyle='#facc15';x.beginPath();x.arc(q.x,q.y,lw*3,0,7);x.fill();
+      if(!built&&o===A&&t!=null&&t-(lastErr[n]??-9)>=.6){lastErr[n]=t;addLi(t,n,g,r)}}
+    x.lineWidth=lw/2;x.strokeStyle='#000';x.fillStyle=bad?'#facc15':'#fff';
+    x.strokeText(Math.round(g)+'°',q.x,q.y-lw*3);x.fillText(Math.round(g)+'°',q.x,q.y-lw*3);
+  }
+}
+async function tick(){
+  if(det&&!analyzing)for(const o of P){
+    const v=o.v;if(o.busy||!v.src||v.readyState<2||!v.videoWidth)continue;
+    if(o.force||v.currentTime!==o.lastT){
+      if(v.currentTime<o.t0-.1||v.currentTime>o.t1+.1){o.x.clearRect(0,0,o.c.width,o.c.height);o.lastT=v.currentTime;o.force=false;continue}
+      o.busy=true;o.force=false;o.lastT=v.currentTime;
+      try{await est(o);draw(o,o.lastT)}catch(e){o.st.textContent='خطأ: '+(e.message||e)}
+      o.busy=false;
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+const seek=(v,t)=>new Promise(r=>{
+  const f=()=>{clearTimeout(h);v.removeEventListener('seeked',f);setTimeout(r,40)};
+  const h=setTimeout(f,2000);v.addEventListener('seeked',f);
+  if(Math.abs(v.currentTime-t)<.001)f();else v.currentTime=t;
+});
+async function analyze(o,name){
+  const v=o.v;v.pause();const seg=o.t1-o.t0,N=Math.min(120,Math.max(20,Math.round(seg*8)));
+  o.data=new Array(N+1);let done=0;
+  const start=()=>{o.kp=null;o.lost=0;o.target=o.tap?{x:o.tap.x,y:o.tap.y}:null};
+  const step=async i=>{
+    const t=Math.min(o.t0+i*seg/N,v.duration-.05);
+    await seek(v,t);await est(o);draw(o,null);
+    o.data[i]={t,a:o.kp?angs(o.kp):{}};
+    gst.textContent='تحليل '+name+' '+Math.round(++done/(N+1)*100)+'%';
+  };
+  const i0=o.tap?Math.max(0,Math.min(N,Math.round((o.tap.t-o.t0)/seg*N))):0;
+  start();for(let i=i0;i<=N;i++)await step(i);
+  if(i0>0){start();for(let i=i0-1;i>=0;i--)await step(i)}
+}
+function stats(o){
+  const s={};
+  for(const[n]of J){
+    if(!jOn(n))continue;
+    const a=o.data.map(d=>d.a[n]).filter(g=>g!=null).sort((p,q)=>p-q);
+    if(a.length>=5)s[n]={lo:a[Math.floor(a.length*.05)],hi:a[Math.ceil(a.length*.95)-1],m:a.reduce((p,q)=>p+q)/a.length};
+  }
+  return s;
+}
+function finish(){
+  const sA=A.data.length?stats(A):null,sB=B.data.length?stats(B):null;
+  ref=null;list.innerHTML='';built=true;
+  if(sB){ref={};for(const n in sB)ref[n]=[sB[n].lo-TOL,sB[n].hi+TOL]}
+  if(sA){
+    const last={};
+    for(const d of A.data)for(const[n,type]of J){
+      const g=d.a[n];if(g==null||!jOn(n))continue;
+      const r=ref?ref[n]:R[$('md').value][type];if(!r)continue;
+      if((g<r[0]||g>r[1])&&d.t-(last[n]??-9)>=.6){last[n]=d.t;addLi(d.t,n,g,r)}
+    }
+    if(!list.children.length)list.innerHTML='<li style="cursor:default;background:none;border-color:var(--bd)">مفيش أخطاء مكتشفة ✅</li>';
+  }
+  const sum=$('sum');
+  if(sA&&sB){
+    let rows='',bad=0;
+    for(const[n]of J){
+      const a=sA[n],b=sB[n];if(!a||!b)continue;
+      const dm=a.m-b.m,fl=Math.abs(dm)>TOL;if(fl)bad++;
+      rows+='<tr'+(fl?' class="y"':'')+'><td>'+n+'</td><td>'+Math.round(a.m)+'° / '+Math.round(b.m)+'°</td><td>'+Math.round(a.lo)+'–'+Math.round(a.hi)+' / '+Math.round(b.lo)+'–'+Math.round(b.hi)+'</td><td>'+(dm>0?'+':'')+Math.round(dm)+'°</td></tr>';
+    }
+    sum.innerHTML='<table><tr><th>المفصل</th><th>المتوسط (أنت / المرجع)</th><th>المدى (أنت / المرجع)</th><th>الفرق</th></tr>'+rows+'</table><p>'+(bad?'فيه '+bad+' مفاصل بتفرق عن المرجع أكتر من '+TOL+'°. راجع القايمة الصفراء.':'زواياك قريبة من المرجع في كل المفاصل اللي اتحللت.')+'</p>';
+  }else sum.textContent=sA?'اترفع فيديوك بس، فالتقييم بالحدود الافتراضية. ارفع المرجع للمقارنة.':'حلّلت المرجع بس. ارفع فيديوك للمقارنة.';
+}
+$('cmp').onclick=async()=>{
+  if(!det){gst.textContent='النموذج لسه مش جاهز، استنى أو اضغط جرّب تاني.';return}
+  const L=loaded();if(!L.length){gst.textContent='ارفع فيديو الأول';return}
+  analyzing=true;$('cmp').disabled=true;lastErr={};
+  try{
+    if(B.v.duration)await analyze(B,'المرجع');
+    if(A.v.duration)await analyze(A,'فيديوك');
+    finish();gst.textContent='تم التحليل ✅';
+  }catch(e){gst.textContent='خطأ في التحليل: '+(e.message||e)}
+  analyzing=false;$('cmp').disabled=false;P.forEach(o=>o.force=true);
+};
+tick();load();
+</script>
+</body>
+</html>
