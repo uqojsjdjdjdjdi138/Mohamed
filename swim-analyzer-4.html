@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>محلل الحركة — مقارنة بفيديو صحيح</title>
+<style>
+:root{--bg:#10151c;--card:#1a222d;--ink:#e8edf3;--mut:#8a97a8;--y:#ffd23f;--line:#2a3544}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,"Segoe UI",Tahoma,sans-serif;padding:env(safe-area-inset-top) 12px 0}
+h1{font-size:18px;margin:14px 0 8px}
+.p{background:var(--card);border-radius:10px;padding:10px;margin-bottom:10px}
+.p h2{font-size:14px;margin:0 0 8px}
+.w{--ar:1.78;position:relative;background:#000;border-radius:6px;overflow:hidden;width:min(100%,calc(52vh*var(--ar)));aspect-ratio:var(--ar);margin:0 auto}
+.w video,.w canvas{position:absolute;inset:0;width:100%;height:100%}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+button,.b,select{background:#26313f;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font:inherit}
+.up{display:inline-block;margin-bottom:8px;background:#2d6cdf;border-color:#2d6cdf}
+.go{background:var(--y);color:#222;border-color:var(--y);font-weight:700;width:100%;margin-top:10px}
+.mut{color:var(--mut);font-size:13px}
+.jg{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;margin-top:6px}
+.er{display:block;width:100%;text-align:right;margin-top:6px;border-color:#5a4a12;background:#2a2410}
+.bar{position:sticky;bottom:0;background:#0b0f14ee;padding:8px 0 calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);margin:0 -12px;padding-inline:12px}
+.bar input[type=range]{flex:1;min-width:120px}
+</style></head><body>
+<h1>محلل الحركة — فيديوك مقابل الفيديو الصحيح</h1>
+<div id="pp"></div>
+<div class="p">
+<div class="row">
+<select id="mode"><option value="swim">سباحة</option><option value="squat">سكوات</option><option value="gen">عام</option></select>
+<select id="side"><option value="all">الجسم كله</option><option value="L">اليسار بس</option><option value="R">اليمين بس</option></select>
+<label><input type="checkbox" id="sk" checked> الهيكل</label>
+</div>
+<div class="jg" id="jg"></div>
+<button class="go" id="go">حلّل وقارن</button>
+<div class="mut" id="st" style="margin-top:8px">ارفع الفيديو، حدد المقطع، واضغط على السباح في الفيديو (في أي لحظة يبان فيها بوضوح) قبل التحليل.</div>
+</div>
+<div class="p"><h2>ملخص المقارنة</h2><div id="sum" class="mut">اضغط «حلّل وقارن» بعد رفع الفيديو.</div></div>
+<div class="p"><h2>الأخطاء في فيديوك (الأصفر)</h2><div id="er" class="mut">اضغط على أي خطأ عشان تروح للحظة دي.</div></div>
+<div class="bar"><div class="row" style="margin:0">
+<button id="bk">◀</button><button id="pl">تشغيل</button><button id="fw">▶</button>
+<input type="range" id="sl" min="0" max="1000" value="0">
+<select id="sp"><option value=".1">0.1x</option><option value=".25">0.25x</option><option value=".5" selected>0.5x</option><option value="1">1x</option></select>
+</div></div>
+<script>
+const FPS=20,TH=20,D=512,$=i=>document.getElementById(i);
+const J={eL:[11,13,15,'الكوع الأيسر'],eR:[12,14,16,'الكوع الأيمن'],sL:[13,11,23,'الكتف الأيسر'],sR:[14,12,24,'الكتف الأيمن'],hL:[11,23,25,'الحوض الأيسر'],hR:[12,24,26,'الحوض الأيمن'],kL:[23,25,27,'الركبة اليسرى'],kR:[24,26,28,'الركبة اليمنى']};
+const H={e:['الذراع ممدودة أكتر من المرجع','الكوع مثني أكتر من المرجع'],s:['الذراع مرفوعة أكتر من المرجع','الذراع أقل ارتفاعاً من المرجع'],h:['الجذع أكتر استقامة من المرجع','الجذع مثني عند الحوض أكتر من المرجع'],k:['الركبة أكتر فرداً من المرجع','الركبة مثنية أكتر من المرجع']};
+const BONES=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[27,31],[28,32]];
+const pnl=(k,t)=>`<div class="p"><h2>${t}</h2><label class="b up">ارفع الفيديو<input id="f${k}" type="file" accept="video/*" hidden></label><div class="w" id="w${k}"><video id="v${k}" muted playsinline preload="auto"></video><canvas id="c${k}"></canvas></div><div class="row"><button onclick="setM('${k}','s')">بداية من هنا</button><button onclick="setM('${k}','e')">نهاية (دخول الماء) هنا</button><span id="t${k}" class="mut"></span></div></div>`;
+$('pp').innerHTML=pnl('u','فيديوك')+pnl('r','الفيديو الصحيح (المرجع)');
+$('jg').innerHTML=Object.keys(J).map(k=>`<label><input type="checkbox" id="j${k}" checked> ${J[k][3]}</label>`).join('');
+const mk=(k,col)=>({k,col,v:$('v'+k),c:$('c'+k),w:$('w'+k),s:0,e:0,pick:null,fr:[],mt:null,hit:0});
+const P={u:mk('u','#35d0e8'),r:mk('r','#5be37d')};
+let errs=[],LMp=null;
+const msg=t=>$('st').textContent=t;
+const mark=p=>$('t'+p.k).textContent=`المقطع: ${p.s.toFixed(2)} → ${p.e.toFixed(2)} ث`;
+const reset=()=>{P.u.fr=[];P.r.fr=[];errs=[];showErr();$('sum').textContent='اضغط «حلّل وقارن» من جديد.'};
+for(const k in P){const p=P[k];
+ $('f'+k).onchange=ev=>{const f=ev.target.files[0];if(!f)return;p.v.src=URL.createObjectURL(f);p.s=0;p.pick=null;reset()};
+ p.v.onloadedmetadata=()=>{p.e=p.v.duration;p.c.width=p.v.videoWidth;p.c.height=p.v.videoHeight;p.w.style.setProperty('--ar',p.v.videoWidth/p.v.videoHeight);mark(p)};
+ p.c.onclick=ev=>{if(!p.v.src)return;const r=p.c.getBoundingClientRect();p.pick={x:(ev.clientX-r.left)/r.width,y:(ev.clientY-r.top)/r.height,t:p.v.currentTime};p.fr=[];msg('تم اختيار السباح ✓ (اضغط عليه في لحظة يبان فيها بوضوح)')};
+ if(p.v.requestVideoFrameCallback){const cb=(_,m)=>{p.mt=m.mediaTime;p.v.requestVideoFrameCallback(cb)};p.v.requestVideoFrameCallback(cb)}
+}
+function setM(k,w){const p=P[k];if(!p.v.src)return;const t=p.v.currentTime;
+ if(w=='s'){if(t>=p.e-.3)return msg('البداية لازم تكون قبل النهاية');p.s=t}else{if(t<=p.s+.3)return msg('النهاية لازم تكون بعد البداية');p.e=t}
+ mark(p);reset()}
+/* ---------- model ---------- */
+const lm=()=>LMp??=(async()=>{const V='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';const T=await import(V+'/vision_bundle.mjs');const F=await T.FilesetResolver.forVisionTasks(V+'/wasm');
+ const o=d=>T.PoseLandmarker.createFromOptions(F,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',delegate:d},runningMode:'IMAGE',numPoses:3,minPoseDetectionConfidence:.3,minPosePresenceConfidence:.3,minTrackingConfidence:.3});
+ try{return await o('GPU')}catch(e){return await o('CPU')}})();
+const raf=()=>new Promise(r=>requestAnimationFrame(r));
+const seek=(v,t)=>new Promise(r=>{if(Math.abs(v.currentTime-t)<.002)return r();v.addEventListener('seeked',()=>r(),{once:true});v.currentTime=t});
+/* لقطة مضمونة: نستنى الإطار الجديد يتعرض فعلاً (مهم على الآيفون) وبعدين ننسخه على كانفس مخفي */
+const FC=document.createElement('canvas'),FX=FC.getContext('2d'),TC=document.createElement('canvas'),TX=TC.getContext('2d');TC.width=TC.height=D;
+function grab(v,t){return new Promise(res=>{
+ let sk=false,fr=false,fin=false,to;
+ const done=()=>{if(fin)return;fin=true;clearTimeout(to);FX.drawImage(v,0,0,FC.width,FC.height);res()};
+ const chk=()=>{if(sk&&(fr||!v.requestVideoFrameCallback))raf().then(done)};
+ to=setTimeout(done,700);
+ if(Math.abs(v.currentTime-t)<.001){raf().then(raf).then(done);return}
+ v.addEventListener('seeked',()=>{sk=true;chk()},{once:true});
+ const reg=()=>v.requestVideoFrameCallback((_,m)=>{if(Math.abs(m.mediaTime-t)<.15){fr=true;chk()}else if(!fin)reg()});
+ if(v.requestVideoFrameCallback)reg();
+ v.currentTime=t})}
+const mp=(f,a,b)=>({x:(f[a].x+f[b].x)/2,y:(f[a].y+f[b].y)/2});
+const ctr=p=>({x:(p[11].x+p[12].x+p[23].x+p[24].x)/4,y:(p[11].y+p[12].y+p[23].y+p[24].y)/4});
+const torso=p=>Math.hypot((p[11].x+p[12].x-p[23].x-p[24].x)/2,(p[11].y+p[12].y-p[23].y-p[24].y)/2);
+const vis=p=>(p[11].v+p[12].v+p[23].v+p[24].v)/4;
+/* زوايا الدوران: السباح الأفقي بيتلف لوضع قائم قبل ما النموذج يحلله (النموذج مدرّب على أجسام واقفة) */
+const ANG=[0,-45,-90,-135,180,135,90,45].map(d=>d*Math.PI/180);
+function drawCrop(cx,cy,S,a){TX.setTransform(1,0,0,1,0,0);TX.fillStyle='#000';TX.fillRect(0,0,D,D);const k=D/S;TX.translate(D/2,D/2);TX.rotate(a);TX.scale(k,k);TX.translate(-cx,-cy);TX.drawImage(FC,0,0)}
+function evalRot(L,st,ri){
+ const a=st.A[ri],co=Math.cos(a),si=Math.sin(a),k=D/st.S;drawCrop(st.cx,st.cy,st.S,a);
+ let best=null;
+ for(const l of L.detect(TC).landmarks){
+  const v=i=>l[i].visibility??1,vs=(v(11)+v(12)+v(23)+v(24))/4;if(vs<.3)continue;
+  const s=mp(l,11,12),h=mp(l,23,24),an=mp(l,27,28);
+  if(!(s.y<h.y&&Math.hypot(s.x-h.x,s.y-h.y)>.04))continue;
+  const q=l.map(m=>{const tx=m.x*D-D/2,ty=m.y*D-D/2;return{x:st.cx+(tx*co+ty*si)/k,y:st.cy+(-tx*si+ty*co)/k,v:m.visibility??1}});
+  const c=ctr(q),dist=Math.hypot(c.x-st.cx,c.y-st.cy),G=st.found?.4*st.S:(st.pick?.6*st.S:1e9);
+  if(dist>G)continue;
+  const up=(l[0].y<s.y?1:0)+((Math.min(v(27),v(28))>.3&&h.y<an.y)?1:0);
+  const sc=vs+.3*up-((st.found||st.pick)?dist/st.S:0)+(ri==st.ri?.1:0);
+  if(!best||sc>best.sc)best={q,sc,ri}}
+ return best}
+function track(L,st){
+ const n8=st.A.length;let best=evalRot(L,st,st.ri);
+ if(n8>1){
+  if(!best||best.sc<1.2)for(const d of[1,-1]){const b=evalRot(L,st,(st.ri+d+n8)%n8);if(b&&(!best||b.sc>best.sc))best=b}
+  if(!best||best.sc<1.0)for(let r=0;r<n8;r++){const df=Math.abs(r-st.ri);if(df<=1||df==n8-1)continue;const b=evalRot(L,st,r);if(b&&(!best||b.sc>best.sc))best=b}}
+ if(!best||best.sc<.6){st.miss++;if(st.miss>=3)st.S=Math.min(st.S*1.25,st.maxS);return null}
+ const q=best.q,c=ctr(q);st.cx=c.x;st.cy=c.y;st.ri=best.ri;st.miss=0;st.found=true;
+ const pts=[0,11,12,23,24,25,26,27,28,15,16].map(i=>q[i]).filter(m=>m.v>.4);
+ if(pts.length>3){const xs=pts.map(m=>m.x),ys=pts.map(m=>m.y),Lz=Math.max(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys));st.Lz=st.Lz?.5*st.Lz+.5*Lz:Lz}
+ st.S=Math.min(st.maxS,Math.max(st.minS,1.8*(st.Lz||st.S/1.8)));
+ return q}
+function init(L,p,W,Hh){
+ const mx=Math.max(W,Hh),st={cx:W/2,cy:Hh/2,S:.5*mx,ri:0,miss:0,found:false,pick:!!p.pick,A:$('mode').value=='swim'?ANG:[ANG[0]],minS:Math.max(220,.22*Math.min(W,Hh)),maxS:mx};
+ if(p.pick){st.cx=p.pick.x*W;st.cy=p.pick.y*Hh}
+ else{const ps=L.detect(FC).landmarks.map(l=>l.map(m=>({x:m.x*W,y:m.y*Hh,v:m.visibility??1}))).filter(q=>vis(q)>.25).sort((a,b)=>torso(b)-torso(a));
+  if(ps[0]){const c=ctr(ps[0]);st.cx=c.x;st.cy=c.y;st.S=Math.min(mx,Math.max(st.minS,6*torso(ps[0])))}}
+ return st}
+/* ملء الفجوات الصغيرة + تنعيم مركزي (من غير تأخير) */
+function post(raw){
+ const n=raw.length,out=raw.map(f=>f&&f.map(q=>({...q})));
+ let i=0;while(i<n){if(out[i]){i++;continue}let j=i;while(j<n&&!out[j])j++;
+  const a=out[i-1],b=out[j];
+  if(a&&b&&j-i<=4)for(let k=i;k<j;k++){const f=(k-i+1)/(j-i+1);out[k]=a.map((q,m)=>({x:q.x+(b[m].x-q.x)*f,y:q.y+(b[m].y-q.y)*f,v:Math.min(q.v,b[m].v)}))}
+  i=j}
+ return out.map((f,i)=>{if(!f)return null;const a=out[i-1],b=out[i+1];if(!a||!b)return f;
+  return f.map((q,m)=>({x:.25*a[m].x+.5*q.x+.25*b[m].x,y:.25*a[m].y+.5*q.y+.25*b[m].y,v:q.v}))})}
+/* تحليل المقطع كله: تتبع من لحظة اختيار السباح للأمام والخلف */
+async function analyze(p){
+ const L=await lm(),v=p.v,W=v.videoWidth,Hh=v.videoHeight,n=Math.max(8,Math.round((p.e-p.s)*FPS)),T=i=>p.s+(p.e-p.s)*i/n;
+ v.pause();FC.width=W;FC.height=Hh;
+ const raw=new Array(n+1).fill(null);
+ const i0=p.pick?Math.round((Math.min(Math.max(p.pick.t,p.s),p.e)-p.s)/(p.e-p.s)*n):0;
+ await grab(v,T(i0));const st0=init(L,p,W,Hh);
+ const tot=n+2,nm=p.k=='u'?'فيديوك':'المرجع';let dn=0;
+ const run=async(a,b,d)=>{const st={...st0};for(let i=a;d>0?i<=b:i>=b;i+=d){await grab(v,T(i));raw[i]=track(L,st);msg(`تحليل ${nm} ${Math.round(++dn/tot*100)}%`)}};
+ await run(i0,n,1);if(i0>0)await run(i0,0,-1);
+ p.hit=raw.filter(Boolean).length/(n+1);
+ p.fr=post(raw);await seek(v,p.s)}
+/* ---------- helpers ---------- */
+const ang3=(A,B,C)=>{const a=A.x-B.x,b=A.y-B.y,c=C.x-B.x,d=C.y-B.y,m=Math.hypot(a,b)*Math.hypot(c,d);return m?Math.acos(Math.max(-1,Math.min(1,(a*c+b*d)/m)))*180/Math.PI:null};
+const ang=(f,t)=>(f[t[0]].v>.4&&f[t[1]].v>.4&&f[t[2]].v>.4)?ang3(f[t[0]],f[t[1]],f[t[2]]):null;
+const angs=f=>{const o={};for(const k in J)o[k]=ang(f,J[k]);return o};
+const okS=i=>{const s=$('side').value;return s=='all'||(s=='L')==(i%2==1)};
+function frameAt(p,t){const n=p.fr.length-1;if(n<1||t<p.s-.05||t>p.e+.05)return null;
+ const x=Math.min(n,Math.max(0,(t-p.s)/(p.e-p.s)*n)),i=Math.floor(x),f=x-i,a=p.fr[i],b=p.fr[Math.min(n,i+1)];
+ return a&&b?a.map((q,j)=>({x:q.x+(b[j].x-q.x)*f,y:q.y+(b[j].y-q.y)*f,v:Math.min(q.v,b[j].v)})):(a||b)}
+function runs(v,bad,sev,cb){let i=0;while(i<v.length){if(v[i]!=null&&bad(v[i])){let j=i,pk=i;while(j+1<v.length&&v[j+1]!=null&&bad(v[j+1])){j++;if(sev(v[j])>sev(v[pk]))pk=j}if(j-i+1>=3)cb(i,j,pk);i=j+1}else i++}}
+/* ---------- compare ---------- */
+function compare(){
+ const U=P.u,R=P.r;errs=[];const n=U.fr.length-1;if(n<1){showErr();return}
+ const tt=i=>U.s+(U.e-U.s)*i/n,au=U.fr.map(f=>f&&angs(f)),hasR=R.v.src&&R.fr.length>1,rm=R.fr.length-1,ar=hasR?R.fr.map(f=>f&&angs(f)):[];
+ let tot=0,good=0;const lines=[];
+ if(hasR)Object.keys(J).filter(k=>$('j'+k).checked&&okS(J[k][1])).forEach(k=>{
+  const d=au.map((a,i)=>{const x=i/n*rm,j=Math.floor(x),f=x-j,b0=ar[j]?.[k],b1=ar[Math.min(rm,j+1)]?.[k],b=(b0!=null&&b1!=null)?b0+(b1-b0)*f:(b0??b1),u=a?.[k];return(u==null||b==null)?null:u-b});
+  const dv=d.filter(x=>x!=null);
+  if(dv.length){tot+=dv.length;good+=dv.filter(x=>Math.abs(x)<=TH).length;lines.push(`${J[k][3]}: متوسط الفرق ${Math.round(dv.reduce((s,x)=>s+Math.abs(x),0)/dv.length)}°`)}
+  runs(d,x=>Math.abs(x)>TH,Math.abs,(i,j,pk)=>{const x=d[pk],u=au[pk][k];errs.push({t0:tt(i),t1:tt(j),ix:J[k].slice(0,3),sv:Math.abs(x)*(j-i+1),tx:`${J[k][3]}: زاويتك ${Math.round(u)}° والمرجع ${Math.round(u-x)}° — ${H[k[0]][x>0?0:1]}`})});
+ });
+ /* قواعد الوضع بتشتغل بس لو مفيش مرجع — مع المرجع الحكم بيكون بالمقارنة معاه */
+ const md=$('mode').value,mid=(f,a,b)=>({x:(f[a].x+f[b].x)/2,y:(f[a].y+f[b].y)/2,v:Math.min(f[a].v,f[b].v)});
+ const body=f=>{const s=mid(f,11,12),h=mid(f,23,24),a=mid(f,27,28);return Math.min(s.v,h.v,a.v)<.4?null:ang3(s,h,a)};
+ const lean=f=>{const s=mid(f,11,12),h=mid(f,23,24);return Math.min(s.v,h.v)<.4?null:Math.atan2(Math.abs(s.x-h.x),Math.abs(s.y-h.y))*180/Math.PI};
+ if(!hasR&&md=='swim'){const v=U.fr.map(f=>f&&body(f));runs(v,x=>x<160,x=>160-x,(i,j,pk)=>errs.push({t0:tt(i),t1:tt(j),ix:[11,12,23,24,27,28],sv:(160-v[pk])*(j-i+1),tx:`استقامة الجسم: ${Math.round(v[pk])}° (المفروض 160° أو أكتر) — الحوض أو الرجلين نازلين`}))}
+ if(!hasR&&md=='squat'){const v=U.fr.map(f=>f&&lean(f));runs(v,x=>x>50,x=>x-50,(i,j,pk)=>errs.push({t0:tt(i),t1:tt(j),ix:[11,12,23,24],sv:(v[pk]-50)*(j-i+1),tx:`ميلان الجذع ${Math.round(v[pk])}° — زيادة عن اللازم`}));
+  let mn=1e9,mi=-1;au.forEach((a,i)=>{if(!a)return;const ks=['kL','kR'].filter(k=>a[k]!=null&&okS(J[k][1]));if(ks.length){const m=Math.min(...ks.map(k=>a[k]));if(m<mn){mn=m;mi=i}}});
+  if(mi>=0&&mn>100)errs.push({t0:tt(mi),t1:tt(mi),ix:[23,24,25,26,27,28],sv:mn-100,tx:`العمق مش كفاية: أقل زاوية ركبة ${Math.round(mn)}° (المفروض حوالي 90° أو أقل)`})}
+ errs.sort((a,b)=>a.t0-b.t0);showErr();
+ const trk=[U,R].filter(p=>p.v.src&&p.fr.length).map(p=>`${p.k=='u'?'فيديوك':'المرجع'} ${Math.round(p.hit*100)}%`).join(' — ');
+ const weak=[U,R].some(p=>p.v.src&&p.fr.length&&p.hit<.7)?'<br>⚠ التتبّع ضعيف: اضغط على السباح تاني في لحظة واضحة وأعد التحليل.':'';
+ $('sum').innerHTML=(hasR?`تطابق مع المرجع: <b>${tot?Math.round(good/tot*100):0}%</b> من اللقطات ضمن ±${TH}°<br>`+lines.join('<br>'):'من غير مرجع: بيتم فحص قواعد الوضع بس.')+`<br>عدد الأخطاء: ${errs.length}<br><span class="mut">نسبة التتبّع: ${trk}</span>`+weak}
+function showErr(){$('er').innerHTML=errs.length?'':'مفيش أخطاء واضحة.';errs.slice(0,30).forEach(e=>{const b=document.createElement('button');b.className='er';b.textContent=`${e.t0.toFixed(2)}ث — ${e.tx}`;b.onclick=()=>{pause();goT(e.t0)};$('er').appendChild(b)});if(!errs.length&&!P.u.fr.length)$('er').textContent='اضغط على أي خطأ عشان تروح للحظة دي.'}
+/* ---------- drawing ---------- */
+function draw(p){
+ const c=p.c,x=c.getContext('2d'),W=c.width;x.clearRect(0,0,W,c.height);if(!p.v.src||!W)return;
+ const t=(!p.v.paused&&p.mt!=null)?p.mt:p.v.currentTime,f=frameAt(p,t),lw=Math.max(2,W/180);
+ if(p.pick&&!p.fr.length){x.strokeStyle='#ffd23f';x.lineWidth=lw;x.beginPath();x.arc(p.pick.x*W,p.pick.y*c.height,W/20,0,7);x.stroke()}
+ if(!f)return;
+ const hot=new Set();if(p.k=='u')errs.forEach(e=>{if(t>=e.t0-.05&&t<=e.t1+.05)e.ix.forEach(i=>hot.add(i))});
+ if($('sk').checked){x.lineCap='round';x.lineWidth=lw;
+  BONES.forEach(([a,b])=>{if(!okS(a)||!okS(b)||f[a].v<.4||f[b].v<.4)return;x.strokeStyle=(hot.has(a)&&hot.has(b))?'#ffd23f':p.col;x.beginPath();x.moveTo(f[a].x,f[a].y);x.lineTo(f[b].x,f[b].y);x.stroke()});
+  for(let i=11;i<=32;i++){if(!okS(i)||f[i].v<.4)continue;x.fillStyle=hot.has(i)?'#ffd23f':'#fff';x.beginPath();x.arc(f[i].x,f[i].y,lw*1.6,0,7);x.fill()}}
+ x.font=`bold ${Math.round(W/26)}px system-ui`;x.lineWidth=3;x.strokeStyle='#000';
+ for(const k in J){if(!$('j'+k).checked||!okS(J[k][1]))continue;const a=ang(f,J[k]);if(a==null)continue;const q=f[J[k][1]],s=Math.round(a)+'°';x.fillStyle=(hot.has(J[k][1]))?'#ffd23f':'#fff';x.strokeText(s,q.x+lw*2,q.y-lw*2);x.fillText(s,q.x+lw*2,q.y-lw*2)}}
+/* ---------- playback (الفيديوهين متزامنين على نفس نسبة المقطع) ---------- */
+const M=()=>P.u.v.src?P.u:P.r,S=()=>(P.u.v.src&&P.r.v.src)?P.r:null;
+const dur=p=>Math.max(.01,p.e-p.s);
+function setP(q){q=Math.max(0,Math.min(1,q));const m=M(),s=S();if(!m.v.src)return;m.v.currentTime=m.s+q*dur(m);if(s)s.v.currentTime=s.s+q*dur(s)}
+const goT=t=>{const m=M();setP((t-m.s)/dur(m))};
+const curP=()=>{const m=M();return(m.v.currentTime-m.s)/dur(m)};
+function rate(){const m=M(),s=S(),r=+$('sp').value;m.v.playbackRate=r;if(s)s.v.playbackRate=Math.max(.0625,r*dur(s)/dur(m))}
+function pause(){P.u.v.pause();P.r.v.pause();$('pl').textContent='تشغيل'}
+function play(){const m=M(),s=S();if(!m.v.src)return;if(curP()<0||curP()>=.99)setP(0);rate();m.v.play();if(s)s.v.play();$('pl').textContent='إيقاف'}
+$('pl').onclick=()=>M().v.paused?play():pause();
+$('bk').onclick=()=>{pause();setP(curP()-1/FPS/dur(M()))};
+$('fw').onclick=()=>{pause();setP(curP()+1/FPS/dur(M()))};
+$('sp').onchange=rate;
+let drag=false;$('sl').oninput=()=>{drag=true;pause();setP($('sl').value/1000)};$('sl').onchange=()=>drag=false;
+$('go').onclick=async()=>{
+ if(!P.u.v.src&&!P.r.v.src)return msg('ارفع فيديو الأول');
+ pause();$('go').disabled=true;
+ try{for(const k of['u','r'])if(P[k].v.src)await analyze(P[k]);compare();msg(P.u.fr.length?'تم التحليل ✓':'ارفع فيديوك الأول')}
+ catch(e){LMp=null;msg('حصل خطأ: '+(e.message||e)+' — اتأكد من الإنترنت وجرّب تاني')}
+ $('go').disabled=false};
+(function loop(){draw(P.u);draw(P.r);const m=M(),s=S();
+ if(m.v.src){if(!drag)$('sl').value=Math.max(0,Math.min(1,curP()))*1000;
+  if(!m.v.paused){if(curP()>=1)pause();else if(s){const tr=s.s+curP()*dur(s);if(Math.abs(s.v.currentTime-tr)>.12)s.v.currentTime=tr}}}
+ requestAnimationFrame(loop)})();
+</script></body></html>
